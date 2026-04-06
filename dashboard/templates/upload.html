@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}데이터 업로드{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold">📤 데이터 업로드</h2>
+    <p class="text-gray-400 mt-1">정부 입찰 데이터, 기관/담당자 정보를 CSV로 업로드</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- 업로드 폼 -->
+    <div class="card p-8">
+        <h3 class="text-lg font-bold mb-6">📁 CSV 파일 업로드</h3>
+
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="mb-6">
+                <label class="block text-sm text-gray-400 mb-2">데이터 유형</label>
+                <select id="data-type" name="data_type" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                    <option value="bid">🏛️ 정부 입찰 데이터 (발주기관/낙찰업체)</option>
+                    <option value="org">🏢 기관 데이터</option>
+                    <option value="contact">👤 담당자 데이터</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm text-gray-400 mb-2">CSV 파일 선택</label>
+                <div id="drop-zone" class="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:border-indigo-500 transition cursor-pointer">
+                    <input type="file" id="file-input" name="file" accept=".csv,.tsv,.txt" class="hidden">
+                    <div id="drop-label">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-500 mb-3"></i>
+                        <p class="text-gray-400">클릭하거나 파일을 드래그하세요</p>
+                        <p class="text-xs text-gray-500 mt-1">CSV, TSV 파일 지원 (UTF-8 또는 EUC-KR)</p>
+                    </div>
+                    <div id="file-info" class="hidden">
+                        <i class="fas fa-file-csv text-4xl text-green-400 mb-3"></i>
+                        <p class="text-green-400 font-medium" id="file-name"></p>
+                        <p class="text-xs text-gray-500 mt-1" id="file-size"></p>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="upload-btn" class="w-full py-4 rounded-xl text-white font-bold text-lg disabled:opacity-50"
+                    style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);" disabled>
+                📤 업로드 시작
+            </button>
+        </form>
+
+        <!-- 업로드 결과 -->
+        <div id="upload-result" class="mt-6 hidden">
+            <div class="bg-gray-800 rounded-xl p-6 border border-green-500 border-opacity-30">
+                <h4 class="font-bold text-green-400 mb-3">✅ 업로드 완료!</h4>
+                <div id="result-stats" class="space-y-2 text-sm">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 가이드 -->
+    <div class="space-y-6">
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">📋 CSV 형식 가이드</h3>
+            <p class="text-sm text-gray-400 mb-4">헤더명을 자동 인식합니다. 아래 키워드가 포함된 컬럼명을 사용하세요.</p>
+
+            <div class="space-y-3 text-sm">
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <p class="text-indigo-400 font-medium">🏛️ 정부 입찰 데이터</p>
+                    <p class="text-gray-400 mt-1">발주기관, 부서, 담당자, 이메일, 전화, 공고명, 예산, 낙찰업체</p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <p class="text-green-400 font-medium">🏢 기관 데이터</p>
+                    <p class="text-gray-400 mt-1">기관명, 유형, 부서, 담당자, 이메일, 전화</p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-3">
+                    <p class="text-yellow-400 font-medium">👤 담당자 데이터</p>
+                    <p class="text-gray-400 mt-1">기관명, 담당자, 부서, 이메일, 전화</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">💡 인식 가능한 헤더 키워드</h3>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">기관:</span>
+                    <span class="text-gray-400">발주기관, 기관명, 주최기관</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">부서:</span>
+                    <span class="text-gray-400">부서, 부서명, 담당부서</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">담당자:</span>
+                    <span class="text-gray-400">담당자, 성명, 이름</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">이메일:</span>
+                    <span class="text-gray-400">이메일, email, e-mail</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">전화:</span>
+                    <span class="text-gray-400">전화, 연락처, phone</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">사업명:</span>
+                    <span class="text-gray-400">공고명, 사업명, 건명</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">예산:</span>
+                    <span class="text-gray-400">예산, 금액, 계약금액</span>
+                </div>
+                <div class="bg-gray-800 rounded px-3 py-2">
+                    <span class="text-indigo-400">낙찰:</span>
+                    <span class="text-gray-400">낙찰업체, 계약업체</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const uploadBtn = document.getElementById('upload-btn');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-500'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-500'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('border-indigo-500');
+    fileInput.files = e.dataTransfer.files;
+    showFileInfo(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) showFileInfo(fileInput.files[0]);
+});
+
+function showFileInfo(file) {
+    document.getElementById('drop-label').classList.add('hidden');
+    document.getElementById('file-info').classList.remove('hidden');
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    uploadBtn.disabled = false;
+}
+
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중...';
+    uploadBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('data_type', document.getElementById('data-type').value);
+
+    try {
+        const res = await fetch('/api/upload-csv', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        const resultDiv = document.getElementById('upload-result');
+        const statsDiv = document.getElementById('result-stats');
+        resultDiv.classList.remove('hidden');
+
+        statsDiv.innerHTML = `
+            <p>📁 파일: <span class="text-white">${data.filename}</span></p>
+            <p>🏢 기관 추가: <span class="text-white font-bold">${data.stats.organizations}개</span></p>
+            <p>👤 담당자 추가: <span class="text-white font-bold">${data.stats.contacts}개</span></p>
+            <p>📋 행사/입찰 추가: <span class="text-white font-bold">${data.stats.events}개</span></p>
+            <p>⏭️ 건너뜀: <span class="text-gray-400">${data.stats.skipped}건</span></p>
+        `;
+    } catch (e) {
+        alert('업로드 실패: ' + e.message);
+    } finally {
+        uploadBtn.innerHTML = '📤 업로드 시작';
+        uploadBtn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

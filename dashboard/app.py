@@ -6,8 +6,11 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, Request, Query
-from fastapi.responses import HTMLResponse
+import csv
+import io
+
+from fastapi import FastAPI, Depends, Request, Query, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func, desc
@@ -213,6 +216,182 @@ async def send_campaign(
         max_count=max_count,
     )
     return {"status": "success", "stats": stats}
+
+
+# ─── 데이터 업로드 페이지 ───
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    """데이터 업로드 페이지 (정부 입찰/외부 데이터)."""
+    return templates.TemplateResponse("upload.html", {"request": request})
+
+
+@app.post("/api/upload-csv")
+async def upload_csv(
+    file: UploadFile = File(...),
+    data_type: str = Form("bid"),
+    db: AsyncSession = Depends(get_db),
+):
+    """CSV/엑셀 파일 업로드 → DB 저장.
+
+    data_type:
+        - bid: 정부 입찰 데이터 (발주기관, 부서, 담당자, 낙찰업체 등)
+        - org: 기관 데이터
+        - contact: 담당자 데이터
+    """
+    stats = {"organizations": 0, "contacts": 0, "events": 0, "skipped": 0}
+
+    content = await file.read()
+    # UTF-8 또는 EUC-KR 디코딩
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("euc-kr", errors="replace")
+
+    reader = csv.DictReader(io.StringIO(text))
+    headers = reader.fieldnames or []
+
+    # 헤더 자동 매핑 (유연하게)
+    header_map = _detect_headers(headers)
+
+    for row in reader:
+        try:
+            # 기관 정보 추출
+            org_name = _get_value(row, header_map, "org_name")
+            if not org_name:
+                stats["skipped"] += 1
+                continue
+
+            # 기관 찾기 또는 생성
+            result = await db.execute(
+                select(Organization).where(Organization.name == org_name)
+            )
+            org = result.scalar_one_or_none()
+
+            if not org:
+                dept = _get_value(row, header_map, "department")
+                org_type_str = _get_value(row, header_map, "org_type")
+                org_type = _guess_org_type(org_name, org_type_str)
+
+                org = Organization(
+                    name=org_name,
+                    org_type=org_type,
+                    description=dept or "",
+                )
+                db.add(org)
+                await db.flush()
+                stats["organizations"] += 1
+
+            # 담당자 정보
+            contact_name = _get_value(row, header_map, "contact_name")
+            contact_email = _get_value(row, header_map, "email")
+            contact_phone = _get_value(row, header_map, "phone")
+            department = _get_value(row, header_map, "department")
+
+            if contact_email:
+                existing = await db.execute(
+                    select(Contact).where(Contact.email == contact_email)
+                )
+                if not existing.scalar_one_or_none():
+                    contact = Contact(
+                        organization_id=org.id,
+                        name=contact_name or "",
+                        department=department or "",
+                        email=contact_email,
+                        phone=contact_phone or "",
+                        source=f"upload:{file.filename}",
+                    )
+                    db.add(contact)
+                    stats["contacts"] += 1
+
+            # 입찰/행사 정보
+            event_title = _get_value(row, header_map, "event_title")
+            if event_title:
+                event = Event(
+                    organization_id=org.id,
+                    title=event_title,
+                    event_type=data_type,
+                    description=_get_value(row, header_map, "description") or "",
+                    budget_info=_get_value(row, header_map, "budget") or "",
+                    source=f"upload:{file.filename}",
+                )
+                db.add(event)
+                stats["events"] += 1
+
+            # 낙찰 업체 정보 (입찰 데이터)
+            winner = _get_value(row, header_map, "winner")
+            if winner:
+                result2 = await db.execute(
+                    select(Organization).where(Organization.name == winner)
+                )
+                if not result2.scalar_one_or_none():
+                    winner_org = Organization(
+                        name=winner,
+                        org_type=OrgType.PRIVATE,
+                        description="낙찰업체",
+                    )
+                    db.add(winner_org)
+                    stats["organizations"] += 1
+
+        except Exception as e:
+            logger.warning(f"행 처리 실패: {e}")
+            stats["skipped"] += 1
+            continue
+
+    await db.commit()
+    logger.info(f"업로드 완료: {stats}")
+    return {"status": "success", "filename": file.filename, "stats": stats}
+
+
+def _detect_headers(headers: list[str]) -> dict[str, str]:
+    """CSV 헤더를 자동 감지하여 내부 필드명으로 매핑."""
+    mapping = {}
+    rules = {
+        "org_name": ["발주기관", "기관명", "발주처", "주최기관", "organization", "기관", "발주"],
+        "department": ["부서", "부서명", "담당부서", "department", "dept"],
+        "contact_name": ["담당자", "담당자명", "성명", "이름", "contact", "name"],
+        "email": ["이메일", "email", "e-mail", "메일"],
+        "phone": ["전화", "전화번호", "연락처", "phone", "tel"],
+        "event_title": ["공고명", "사업명", "입찰명", "행사명", "건명", "title", "과업명"],
+        "budget": ["예산", "금액", "낙찰금액", "계약금액", "예정가격", "budget", "amount"],
+        "winner": ["낙찰업체", "낙찰자", "계약업체", "수주업체", "winner"],
+        "org_type": ["기관유형", "유형", "type"],
+        "description": ["내용", "설명", "비고", "description"],
+    }
+
+    for h in headers:
+        h_lower = h.strip().lower()
+        for field, keywords in rules.items():
+            if field not in mapping:
+                for kw in keywords:
+                    if kw.lower() in h_lower:
+                        mapping[field] = h.strip()
+                        break
+    return mapping
+
+
+def _get_value(row: dict, header_map: dict, field: str) -> str:
+    """매핑된 헤더로 값 추출."""
+    col = header_map.get(field)
+    if col and col in row:
+        return row[col].strip()
+    return ""
+
+
+def _guess_org_type(name: str, type_str: str) -> OrgType:
+    """기관명이나 유형 문자열로 OrgType 추론."""
+    combined = f"{name} {type_str}".lower()
+    if any(kw in combined for kw in ["정부", "부", "처", "청", "국방", "행정"]):
+        return OrgType.GOVERNMENT
+    if any(kw in combined for kw in ["시", "도", "군", "구", "지자체"]):
+        return OrgType.LOCAL_GOV
+    if any(kw in combined for kw in ["진흥원", "공사", "공단", "센터", "재단", "연구원"]):
+        return OrgType.PUBLIC_AGENCY
+    if any(kw in combined for kw in ["대학", "학교"]):
+        return OrgType.UNIVERSITY
+    if any(kw in combined for kw in ["협회", "조합", "연합"]):
+        return OrgType.ASSOCIATION
+    return OrgType.OTHER
 
 
 @app.get("/api/stats")
