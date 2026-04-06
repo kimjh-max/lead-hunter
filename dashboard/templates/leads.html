@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}리드 관리{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h2 class="text-2xl font-bold">👥 리드 관리</h2>
+        <p class="text-gray-400 mt-1">수집된 담당자 정보 (총 {{ total }}명)</p>
+    </div>
+    <div class="flex gap-2">
+        <select onchange="filterByStatus(this.value)" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">전체 상태</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <select onchange="filterByOrgType(this.value)" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">전체 유형</option>
+            {% for t in org_types %}
+            <option value="{{ t }}" {% if org_type_filter == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="card overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-800 text-gray-400 text-left">
+            <tr>
+                <th class="px-4 py-3">이름</th>
+                <th class="px-4 py-3">이메일</th>
+                <th class="px-4 py-3">기관</th>
+                <th class="px-4 py-3">부서</th>
+                <th class="px-4 py-3">상태</th>
+                <th class="px-4 py-3">출처</th>
+                <th class="px-4 py-3">수집일</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+            {% for contact in contacts %}
+            <tr class="hover:bg-gray-800 transition">
+                <td class="px-4 py-3 font-medium text-white">{{ contact.name or '-' }}</td>
+                <td class="px-4 py-3 text-indigo-400">{{ contact.email or '-' }}</td>
+                <td class="px-4 py-3">{{ contact.organization.name if contact.organization else '-' }}</td>
+                <td class="px-4 py-3 text-gray-400">{{ contact.department or '-' }}</td>
+                <td class="px-4 py-3">
+                    <span class="badge
+                        {% if contact.status.value == 'new' %}bg-blue-900 text-blue-300
+                        {% elif contact.status.value == 'contacted' %}bg-yellow-900 text-yellow-300
+                        {% elif contact.status.value == 'interested' %}bg-green-900 text-green-300
+                        {% elif contact.status.value == 'replied' %}bg-purple-900 text-purple-300
+                        {% else %}bg-gray-700 text-gray-300{% endif %}">
+                        {{ contact.status.value }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-gray-400 text-xs">{{ contact.source or '-' }}</td>
+                <td class="px-4 py-3 text-gray-400 text-xs">{{ contact.created_at.strftime('%m/%d') if contact.created_at else '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                    아직 수집된 리드가 없습니다. 크롤링을 먼저 실행해 주세요!
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="flex justify-center mt-6 gap-2">
+    {% for p in range(1, total_pages + 1) %}
+    <a href="/leads?page={{ p }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+       class="px-3 py-1 rounded {% if p == page %}bg-indigo-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">
+        {{ p }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+function filterByStatus(val) {
+    const params = new URLSearchParams(window.location.search);
+    if (val) params.set('status', val); else params.delete('status');
+    params.set('page', '1');
+    window.location.search = params.toString();
+}
+function filterByOrgType(val) {
+    const params = new URLSearchParams(window.location.search);
+    if (val) params.set('org_type', val); else params.delete('org_type');
+    params.set('page', '1');
+    window.location.search = params.toString();
+}
+</script>
+{% endblock %}

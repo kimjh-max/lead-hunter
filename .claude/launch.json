@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "meetup-demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8601", "--directory", "/Users/vadum/Desktop/Dobby/lead-hunter/demo-sites/meetup-matcher"],
+      "port": 8601
+    },
+    {
+      "name": "keyvisual-demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8602", "--directory", "/Users/vadum/Desktop/Dobby/lead-hunter/demo-sites/key-visual"],
+      "port": 8602
+    }
+  ]
+}

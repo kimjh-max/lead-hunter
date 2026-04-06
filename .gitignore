@@ -1,0 +1,14 @@
+# 환경
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# 데이터
+data/*.db
+logs/*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp

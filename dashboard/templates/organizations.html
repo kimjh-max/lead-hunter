@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}기관 목록{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold">🏢 기관 목록</h2>
+    <p class="text-gray-400 mt-1">수집된 행사 주최/주관 기관 (총 {{ total }}개)</p>
+</div>
+
+<div class="card overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-800 text-gray-400 text-left">
+            <tr>
+                <th class="px-4 py-3">기관명</th>
+                <th class="px-4 py-3">유형</th>
+                <th class="px-4 py-3">웹사이트</th>
+                <th class="px-4 py-3">수집일</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+            {% for org in organizations %}
+            <tr class="hover:bg-gray-800 transition">
+                <td class="px-4 py-3 font-medium text-white">{{ org.name }}</td>
+                <td class="px-4 py-3">
+                    <span class="badge
+                        {% if org.org_type.value == 'government' %}bg-red-900 text-red-300
+                        {% elif org.org_type.value == 'local_government' %}bg-orange-900 text-orange-300
+                        {% elif org.org_type.value == 'public_agency' %}bg-blue-900 text-blue-300
+                        {% elif org.org_type.value == 'accelerator' %}bg-green-900 text-green-300
+                        {% else %}bg-gray-700 text-gray-300{% endif %}">
+                        {{ org.org_type.value if org.org_type else '-' }}
+                    </span>
+                </td>
+                <td class="px-4 py-3">
+                    {% if org.website %}
+                    <a href="{{ org.website }}" target="_blank" class="text-indigo-400 hover:underline text-xs">
+                        {{ org.website[:40] }}...
+                    </a>
+                    {% else %}-{% endif %}
+                </td>
+                <td class="px-4 py-3 text-gray-400 text-xs">{{ org.created_at.strftime('%Y-%m-%d') if org.created_at else '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" class="px-4 py-12 text-center text-gray-500">
+                    아직 수집된 기관이 없습니다.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="flex justify-center mt-6 gap-2">
+    {% for p in range(1, total_pages + 1) %}
+    <a href="/organizations?page={{ p }}"
+       class="px-3 py-1 rounded {% if p == page %}bg-indigo-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">
+        {{ p }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
