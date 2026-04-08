@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}메일 미리보기{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold">📧 메일 미리보기 & 템플릿 관리</h2>
+    <p class="text-gray-400 mt-1">콜드메일 작성, 미리보기, 저장 후 발송</p>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+    <!-- 좌측: 에디터 -->
+    <div class="space-y-6">
+        <!-- 템플릿 불러오기 -->
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">📂 저장된 템플릿</h3>
+            <div class="flex flex-wrap gap-2 mb-4">
+                {% for tpl in saved_templates %}
+                <button onclick="loadTemplate('{{ tpl.filename }}')"
+                        class="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-sm text-white transition">
+                    {{ tpl.name }}
+                </button>
+                {% else %}
+                <p class="text-gray-500 text-sm">저장된 템플릿이 없습니다.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 메일 작성 -->
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">✏️ 메일 작성</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">상품 선택</label>
+                    <select id="product-select" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                        {% for slug, info in products.items() %}
+                        <option value="{{ slug }}">{{ info.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">제목</label>
+                    <input type="text" id="mail-subject"
+                           value="[EpicStage] {% raw %}{{product_name}}{% endraw %} 소개 드립니다"
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white"
+                           placeholder="메일 제목...">
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">본문 (HTML)</label>
+                    <div class="flex gap-2 mb-2 text-xs">
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('contact_name')">{% raw %}{{contact_name}}{% endraw %}</span>
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('org_name')">{% raw %}{{org_name}}{% endraw %}</span>
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('product_name')">{% raw %}{{product_name}}{% endraw %}</span>
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('product_description')">{% raw %}{{product_description}}{% endraw %}</span>
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('demo_url')">{% raw %}{{demo_url}}{% endraw %}</span>
+                        <span class="bg-gray-700 px-2 py-1 rounded text-indigo-300 cursor-pointer" onclick="insertVar('sender_name')">{% raw %}{{sender_name}}{% endraw %}</span>
+                    </div>
+                    <textarea id="mail-body" rows="16"
+                              class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-sm"
+                              placeholder="HTML 본문을 작성하세요...">{% raw %}<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#ffffff;color:#333;">
+<h2 style="color:#4f46e5;">안녕하세요, {{contact_name}}님</h2>
+<p>{{org_name}}에서 진행하시는 행사에 도움이 될 솔루션을 소개드립니다.</p>
+<h3>{{product_name}}</h3>
+<p>{{product_description}}</p>
+<p style="margin:24px 0;">
+  <a href="{{demo_url}}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+    무료 데모 체험하기
+  </a>
+</p>
+<p>궁금한 점이 있으시면 편하게 회신 부탁드립니다.</p>
+<p style="color:#888;margin-top:24px;">{{sender_name}} 드림</p>
+</div>{% endraw %}</textarea>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="previewMail()" class="btn-primary px-6 py-2.5 rounded-lg text-white font-medium flex-1">
+                        <i class="fas fa-eye"></i> 미리보기
+                    </button>
+                    <button onclick="saveTemplate()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2.5 rounded-lg text-white font-medium">
+                        <i class="fas fa-save"></i> 저장
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 우측: 미리보기 & 발송 -->
+    <div class="space-y-6">
+        <!-- 미리보기 패널 -->
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">👁️ 미리보기</h3>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">받는 사람 (테스트)</label>
+                    <input type="text" id="preview-contact" value="담당자"
+                           class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">기관명 (테스트)</label>
+                    <input type="text" id="preview-org" value="OO기관"
+                           class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-white">
+                </div>
+            </div>
+
+            <div id="preview-subject-area" class="hidden mb-3">
+                <p class="text-xs text-gray-500 mb-1">제목:</p>
+                <p id="preview-subject-text" class="text-white font-medium bg-gray-800 rounded px-3 py-2"></p>
+            </div>
+
+            <div id="preview-frame-container" class="bg-white rounded-lg overflow-hidden" style="min-height: 300px;">
+                <div id="preview-placeholder" class="flex items-center justify-center h-64 text-gray-500">
+                    <div class="text-center">
+                        <i class="fas fa-envelope-open text-4xl mb-3 text-gray-600"></i>
+                        <p>"미리보기" 버튼을 클릭하면 렌더링된 메일이 여기에 표시됩니다.</p>
+                    </div>
+                </div>
+                <iframe id="preview-frame" class="w-full hidden" style="min-height: 400px; border: none;"></iframe>
+            </div>
+        </div>
+
+        <!-- 발송 패널 -->
+        <div class="card p-6">
+            <h3 class="text-lg font-bold mb-4">🚀 캠페인 발송</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">템플릿 선택</label>
+                    <select id="send-template" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                        <option value="">-- 현재 작성 중인 메일 저장 후 선택 --</option>
+                        {% for tpl in saved_templates %}
+                        <option value="{{ tpl.filename }}">{{ tpl.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">최대 발송 수</label>
+                    <input type="number" id="send-count" value="10" min="1" max="100"
+                           class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                </div>
+
+                {% if sample_contacts %}
+                <div>
+                    <p class="text-xs text-gray-500 mb-2">발송 대상 미리보기 (최대 5명):</p>
+                    <div class="space-y-1">
+                        {% for c in sample_contacts %}
+                        <div class="flex items-center justify-between bg-gray-800 rounded px-3 py-1.5 text-xs">
+                            <span class="text-white">{{ c.name or '(이름없음)' }}</span>
+                            <span class="text-gray-400">{{ c.email }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <button onclick="sendCampaign()" id="send-btn"
+                        class="w-full py-3 rounded-xl text-white font-bold text-lg"
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <i class="fas fa-paper-plane"></i> 캠페인 발송 시작
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% raw %}
+<script>
+function insertVar(name) {
+    const ta = document.getElementById('mail-body');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const text = `{{${name}}}`;
+    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = start + text.length;
+}
+
+async function previewMail() {
+    const formData = new FormData();
+    formData.append('subject', document.getElementById('mail-subject').value);
+    formData.append('body_html', document.getElementById('mail-body').value);
+    formData.append('contact_name', document.getElementById('preview-contact').value);
+    formData.append('org_name', document.getElementById('preview-org').value);
+    formData.append('product_slug', document.getElementById('product-select').value);
+
+    try {
+        const res = await fetch('/api/preview-mail', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        document.getElementById('preview-subject-area').classList.remove('hidden');
+        document.getElementById('preview-subject-text').textContent = data.subject;
+
+        const frame = document.getElementById('preview-frame');
+        frame.classList.remove('hidden');
+        document.getElementById('preview-placeholder').classList.add('hidden');
+        frame.srcdoc = data.html;
+    } catch (e) {
+        alert('미리보기 실패: ' + e.message);
+    }
+}
+
+async function saveTemplate() {
+    const name = prompt('템플릿 이름을 입력하세요:');
+    if (!name) return;
+
+    const formData = new FormData();
+    formData.append('template_name', name);
+    formData.append('subject', document.getElementById('mail-subject').value);
+    formData.append('body_html', document.getElementById('mail-body').value);
+
+    try {
+        const res = await fetch('/api/save-template', { method: 'POST', body: formData });
+        const data = await res.json();
+        alert(`템플릿 "${name}" 저장 완료!`);
+        location.reload();
+    } catch (e) {
+        alert('저장 실패: ' + e.message);
+    }
+}
+
+async function loadTemplate(filename) {
+    try {
+        const res = await fetch(`/api/load-template?name=${filename}`);
+        const data = await res.json();
+        document.getElementById('mail-subject').value = data.subject || '';
+        document.getElementById('mail-body').value = data.body_html || '';
+    } catch (e) {
+        alert('템플릿 불러오기 실패: ' + e.message);
+    }
+}
+
+async function sendCampaign() {
+    const template = document.getElementById('send-template').value;
+    if (!template) {
+        alert('발송할 템플릿을 선택해 주세요.\n먼저 메일을 작성하고 저장하세요.');
+        return;
+    }
+
+    if (!confirm(`"${template}" 템플릿으로 최대 ${document.getElementById('send-count').value}건 발송합니다.\n계속하시겠습니까?`)) return;
+
+    const btn = document.getElementById('send-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 발송 중...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('template_name', template);
+    formData.append('product_slug', document.getElementById('product-select').value);
+    formData.append('max_count', document.getElementById('send-count').value);
+
+    try {
+        const res = await fetch('/api/send-with-template', { method: 'POST', body: formData });
+        const data = await res.json();
+        alert(`발송 완료!\n성공: ${data.stats.sent}건\n실패: ${data.stats.failed}건`);
+    } catch (e) {
+        alert('발송 실패: ' + e.message);
+    } finally {
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> 캠페인 발송 시작';
+        btn.disabled = false;
+    }
+}
+</script>
+{% endraw %}
+{% endblock %}

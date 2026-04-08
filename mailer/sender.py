@@ -127,6 +127,26 @@ class ColdMailer:
             msg["From"] = f"{settings.sender_name} <{settings.sender_email}>"
             msg["To"] = contact.email
             msg["Subject"] = subject
+
+            # 트래킹 픽셀 삽입 (발송 로그 ID는 flush 후 확보)
+            log = EmailLog(
+                contact_id=contact.id,
+                product_slug=product_slug,
+                subject=subject,
+                template_name=template_name,
+                sent_at=datetime.utcnow(),
+            )
+            self.db.add(log)
+            await self.db.flush()  # log.id 확보
+
+            # 오픈 추적 픽셀을 HTML 끝에 삽입
+            tracking_url = f"https://localhost:8500/api/track/open/{log.id}"
+            tracking_pixel = f'<img src="{tracking_url}" width="1" height="1" style="display:none;" alt="" />'
+            if "</body>" in html_body:
+                html_body = html_body.replace("</body>", f"{tracking_pixel}</body>")
+            else:
+                html_body += tracking_pixel
+
             msg.attach(MIMEText(html_body, "html", "utf-8"))
 
             # SMTP 발송
@@ -139,17 +159,7 @@ class ColdMailer:
                 start_tls=True,
             )
 
-            # 발송 로그 저장
-            log = EmailLog(
-                contact_id=contact.id,
-                product_slug=product_slug,
-                subject=subject,
-                template_name=template_name,
-                sent_at=datetime.utcnow(),
-            )
-            self.db.add(log)
-
-            logger.info(f"메일 발송 성공: {contact.email}")
+            logger.info(f"메일 발송 성공: {contact.email} (log_id={log.id})")
             return True
 
         except Exception as e:

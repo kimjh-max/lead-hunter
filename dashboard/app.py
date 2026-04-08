@@ -6,11 +6,13 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import base64
 import csv
 import io
+from datetime import datetime
 
 from fastapi import FastAPI, Depends, Request, Query, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func, desc
@@ -64,13 +66,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         select(func.count(EmailLog.id)).where(EmailLog.sent_at.isnot(None))
     )).scalar() or 0
 
-    # 상태별 리드 수
+    # 상태별 리드 수 (key = enum value string, e.g. "new", "contacted")
     status_stats = {}
-    for status in LeadStatus:
-        count = (await db.execute(
-            select(func.count(Contact.id)).where(Contact.status == status)
+    for st in LeadStatus:
+        cnt = (await db.execute(
+            select(func.count(Contact.id)).where(Contact.status == st)
         )).scalar() or 0
-        status_stats[status.value] = count
+        status_stats[st.value] = cnt
 
     # 최근 수집 기관
     recent_orgs_result = await db.execute(
@@ -239,7 +241,7 @@ async def upload_csv(
         - org: 기관 데이터
         - contact: 담당자 데이터
     """
-    stats = {"organizations": 0, "contacts": 0, "events": 0, "skipped": 0}
+    stats = {"organizations": 0, "contacts": 0, "events": 0, "skipped": 0, "duplicates": []}
 
     content = await file.read()
     # UTF-8 또는 EUC-KR 디코딩
@@ -289,10 +291,20 @@ async def upload_csv(
             department = _get_value(row, header_map, "department")
 
             if contact_email:
-                existing = await db.execute(
+                existing_result = await db.execute(
                     select(Contact).where(Contact.email == contact_email)
                 )
-                if not existing.scalar_one_or_none():
+                existing_contact = existing_result.scalar_one_or_none()
+                if existing_contact:
+                    # 중복 이메일 감지 → 알림 목록에 추가
+                    stats["duplicates"].append({
+                        "email": contact_email,
+                        "name": contact_name or existing_contact.name or "",
+                        "org": org_name,
+                        "existing_source": existing_contact.source or "",
+                        "new_source": f"upload:{file.filename}",
+                    })
+                else:
                     contact = Contact(
                         organization_id=org.id,
                         name=contact_name or "",
@@ -392,6 +404,165 @@ def _guess_org_type(name: str, type_str: str) -> OrgType:
     if any(kw in combined for kw in ["협회", "조합", "연합"]):
         return OrgType.ASSOCIATION
     return OrgType.OTHER
+
+
+# ─── 메일 미리보기 & 템플릿 관리 ───
+
+@app.get("/mail-preview", response_class=HTMLResponse)
+async def mail_preview_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """메일 미리보기 & 템플릿 관리 페이지."""
+    # 저장된 커스텀 템플릿 목록 조회
+    templates_dir = Path(__file__).parent.parent / "mailer" / "templates"
+    custom_dir = templates_dir / "custom"
+    custom_dir.mkdir(exist_ok=True)
+
+    saved_templates = []
+    for f in sorted(custom_dir.glob("*.html")):
+        saved_templates.append({
+            "filename": f.stem,
+            "name": f.stem.replace("_", " ").replace("-", " "),
+        })
+
+    # 리드 샘플 (미리보기용)
+    sample_result = await db.execute(
+        select(Contact).join(Organization).limit(5)
+    )
+    sample_contacts = sample_result.scalars().all()
+
+    return templates.TemplateResponse("mail_preview.html", {
+        "request": request,
+        "saved_templates": saved_templates,
+        "sample_contacts": sample_contacts,
+        "products": settings.products,
+    })
+
+
+@app.post("/api/preview-mail")
+async def preview_mail(
+    subject: str = Form(""),
+    body_html: str = Form(""),
+    contact_name: str = Form("담당자"),
+    org_name: str = Form("기관명"),
+    product_slug: str = Form("meetup-matcher"),
+):
+    """메일 미리보기 렌더링."""
+    product_info = settings.products.get(product_slug, {})
+
+    # 템플릿 변수 치환
+    rendered = body_html.replace("{{contact_name}}", contact_name)
+    rendered = rendered.replace("{{org_name}}", org_name)
+    rendered = rendered.replace("{{product_name}}", product_info.get("name", ""))
+    rendered = rendered.replace("{{product_description}}", product_info.get("description", ""))
+    rendered = rendered.replace("{{demo_url}}", product_info.get("demo_url", ""))
+    rendered = rendered.replace("{{sender_name}}", settings.sender_name)
+
+    subject_rendered = subject.replace("{{product_name}}", product_info.get("name", ""))
+    subject_rendered = subject_rendered.replace("{{org_name}}", org_name)
+    subject_rendered = subject_rendered.replace("{{sender_name}}", settings.sender_name)
+
+    return {"subject": subject_rendered, "html": rendered}
+
+
+@app.post("/api/save-template")
+async def save_template(
+    template_name: str = Form(...),
+    subject: str = Form(""),
+    body_html: str = Form(""),
+):
+    """커스텀 메일 템플릿 저장."""
+    templates_dir = Path(__file__).parent.parent / "mailer" / "templates" / "custom"
+    templates_dir.mkdir(exist_ok=True)
+
+    # 파일명 안전하게 변환
+    safe_name = template_name.strip().replace(" ", "_").replace("/", "_")
+    filepath = templates_dir / f"{safe_name}.html"
+
+    # subject를 HTML 주석으로 포함
+    full_html = f"<!-- subject: {subject} -->\n{body_html}"
+    filepath.write_text(full_html, encoding="utf-8")
+
+    return {"status": "success", "template_name": safe_name, "path": str(filepath)}
+
+
+@app.post("/api/send-with-template")
+async def send_with_template(
+    template_name: str = Form(...),
+    product_slug: str = Form("meetup-matcher"),
+    max_count: int = Form(10),
+    db: AsyncSession = Depends(get_db),
+):
+    """커스텀 템플릿으로 콜드메일 발송."""
+    mailer = ColdMailer(db)
+    stats = await mailer.send_campaign(
+        product_slug=product_slug,
+        template_name=f"custom/{template_name}",
+        max_count=max_count,
+    )
+    return {"status": "success", "stats": stats}
+
+
+# ─── 이메일 오픈 추적 ───
+
+# 1x1 투명 GIF (트래킹 픽셀)
+TRACKING_PIXEL = base64.b64decode(
+    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+)
+
+
+@app.get("/api/track/open/{log_id}")
+async def track_email_open(log_id: int, db: AsyncSession = Depends(get_db)):
+    """이메일 오픈 추적 (트래킹 픽셀)."""
+    result = await db.execute(
+        select(EmailLog).where(EmailLog.id == log_id)
+    )
+    email_log = result.scalar_one_or_none()
+
+    if email_log and not email_log.opened_at:
+        email_log.opened_at = datetime.utcnow()
+
+        # 리드 상태도 업데이트
+        contact_result = await db.execute(
+            select(Contact).where(Contact.id == email_log.contact_id)
+        )
+        contact = contact_result.scalar_one_or_none()
+        if contact and contact.status == LeadStatus.CONTACTED:
+            contact.status = LeadStatus.OPENED
+
+        await db.commit()
+        logger.info(f"메일 오픈 감지: log_id={log_id}")
+
+    return Response(
+        content=TRACKING_PIXEL,
+        media_type="image/gif",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
+# ─── 템플릿 로드 API ───
+
+@app.get("/api/load-template")
+async def load_template(name: str):
+    """저장된 커스텀 템플릿 불러오기."""
+    templates_dir = Path(__file__).parent.parent / "mailer" / "templates" / "custom"
+    filepath = templates_dir / f"{name}.html"
+
+    if not filepath.exists():
+        return JSONResponse({"error": "템플릿을 찾을 수 없습니다."}, status_code=404)
+
+    content = filepath.read_text(encoding="utf-8")
+
+    # subject 추출
+    subject = ""
+    if "<!-- subject:" in content:
+        start = content.index("<!-- subject:") + 13
+        end = content.index("-->", start)
+        subject = content[start:end].strip()
+        # subject 주석 제거한 본문
+        body_html = content[end + 3:].strip()
+    else:
+        body_html = content
+
+    return {"subject": subject, "body_html": body_html}
 
 
 @app.get("/api/stats")

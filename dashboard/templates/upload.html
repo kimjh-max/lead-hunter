@@ -161,13 +161,35 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         const statsDiv = document.getElementById('result-stats');
         resultDiv.classList.remove('hidden');
 
-        statsDiv.innerHTML = `
+        let html = `
             <p>📁 파일: <span class="text-white">${data.filename}</span></p>
             <p>🏢 기관 추가: <span class="text-white font-bold">${data.stats.organizations}개</span></p>
             <p>👤 담당자 추가: <span class="text-white font-bold">${data.stats.contacts}개</span></p>
             <p>📋 행사/입찰 추가: <span class="text-white font-bold">${data.stats.events}개</span></p>
             <p>⏭️ 건너뜀: <span class="text-gray-400">${data.stats.skipped}건</span></p>
         `;
+
+        // 중복 이메일 알림
+        if (data.stats.duplicates && data.stats.duplicates.length > 0) {
+            html += `
+                <div class="mt-4 bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded-lg p-4">
+                    <h5 class="font-bold text-yellow-400 mb-2">⚠️ 중복 이메일 ${data.stats.duplicates.length}건 감지</h5>
+                    <div class="max-h-48 overflow-y-auto space-y-1">
+                        ${data.stats.duplicates.map(d => `
+                            <div class="flex items-center justify-between bg-gray-800 rounded px-3 py-1.5 text-xs">
+                                <span class="text-white">${d.name || '(이름없음)'}</span>
+                                <span class="text-yellow-300">${d.email}</span>
+                                <span class="text-gray-400">${d.org}</span>
+                                <span class="text-gray-500">기존: ${d.existing_source || '-'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">이미 등록된 이메일은 건너뛰었습니다.</p>
+                </div>
+            `;
+        }
+
+        statsDiv.innerHTML = html;
     } catch (e) {
         alert('업로드 실패: ' + e.message);
     } finally {
