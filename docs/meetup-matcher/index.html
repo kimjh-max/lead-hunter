@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 밋업 매칭 솔루션 | EpicStage</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Noto Sans KR', sans-serif; }
+        body { background: #0a0a0a; color: #fff; overflow-x: hidden; }
+
+        .hero-gradient {
+            background: radial-gradient(ellipse at 50% 0%, rgba(236, 72, 153, 0.3) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 50%, rgba(139, 92, 246, 0.2) 0%, transparent 50%),
+                        #0a0a0a;
+        }
+
+        .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
+        .glow-pink { box-shadow: 0 0 40px rgba(236, 72, 153, 0.3); }
+        .glow-purple { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+
+        .btn-cta {
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+            transition: all 0.3s;
+        }
+        .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(236, 72, 153, 0.4); }
+
+        .float-animation { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+
+        .fade-up { opacity: 0; transform: translateY(30px); transition: all 0.8s; }
+        .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+        .match-line { stroke-dasharray: 200; stroke-dashoffset: 200; animation: drawLine 2s forwards; }
+        @keyframes drawLine { to { stroke-dashoffset: 0; } }
+
+        .profile-card { transition: all 0.3s; }
+        .profile-card:hover { transform: scale(1.05); }
+        .profile-card.matched { border-color: #ec4899; box-shadow: 0 0 20px rgba(236, 72, 153, 0.3); }
+
+        .step-number {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 18px; flex-shrink: 0;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .rank-badge {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 14px; flex-shrink: 0;
+        }
+        .rank-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; }
+        .rank-2 { background: linear-gradient(135deg, #d1d5db, #9ca3af); color: #000; }
+        .rank-3 { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; }
+        .rank-4, .rank-5 { background: rgba(255,255,255,0.1); color: #fff; }
+
+        .score-bar { height: 8px; border-radius: 4px; background: #1f2937; overflow: hidden; }
+        .score-bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease-out; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="fixed top-0 w-full z-50 glass">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🤝</span>
+                <span class="font-bold text-lg">AI 밋업 매칭</span>
+                <span class="text-xs text-gray-400 ml-2">by EpicStage</span>
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="#features" class="text-gray-300 hover:text-white text-sm">기능</a>
+                <a href="#demo" class="text-gray-300 hover:text-white text-sm">데모</a>
+                <!-- <a href="#pricing" class="text-gray-300 hover:text-white text-sm">가격</a> -->
+                <a href="#contact" class="btn-cta px-5 py-2 rounded-full text-white text-sm font-medium">
+                    도입 문의
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 히어로 섹션 -->
+    <section class="hero-gradient min-h-screen flex items-center pt-20">
+        <div class="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div class="fade-up">
+                <div class="inline-block glass rounded-full px-4 py-1 text-sm text-pink-300 mb-6">
+                    ✨ AI 기반 네트워킹 혁신
+                </div>
+                <h1 class="text-5xl lg:text-6xl font-black leading-tight mb-6">
+                    참가자 매칭,<br>
+                    <span class="bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+                        AI가 자동으로
+                    </span>
+                </h1>
+                <p class="text-xl text-gray-300 mb-8 leading-relaxed">
+                    행사 참가자의 프로필, 관심사, 목적을 AI가 분석하여<br>
+                    최적의 네트워킹 매칭을 자동으로 생성합니다.
+                </p>
+                <div class="flex gap-4">
+                    <a href="#demo" class="btn-cta px-8 py-4 rounded-xl text-white font-bold text-lg">
+                        🎯 무료 데모 체험
+                    </a>
+                    <a href="#features" class="glass px-8 py-4 rounded-xl text-white font-medium hover:bg-white hover:bg-opacity-10">
+                        자세히 보기 →
+                    </a>
+                </div>
+                <div class="flex gap-8 mt-10 text-sm text-gray-400">
+                    <div><span class="text-2xl font-bold text-white block">98%</span>매칭 만족도</div>
+                    <div><span class="text-2xl font-bold text-white block">1분</span>매칭 생성 시간</div>
+                    <div><span class="text-2xl font-bold text-white block">500+</span>행사 적용</div>
+                </div>
+            </div>
+
+            <!-- 매칭 시각화 -->
+            <div class="relative float-animation">
+                <div class="glass rounded-2xl p-8 glow-pink">
+                    <p class="text-center text-sm text-gray-400 mb-6">AI 매칭 결과 미리보기</p>
+                    <div class="grid grid-cols-2 gap-4" id="match-demo">
+                        <div class="profile-card glass rounded-xl p-4 text-center" data-group="1">
+                            <div class="w-12 h-12 rounded-full bg-pink-500 bg-opacity-20 flex items-center justify-center mx-auto mb-2">👩‍💻</div>
+                            <p class="text-sm font-medium">김서연</p>
+                            <p class="text-xs text-gray-400">스타트업 대표</p>
+                            <p class="text-xs text-pink-400 mt-1">#AI #SaaS</p>
+                        </div>
+                        <div class="profile-card glass rounded-xl p-4 text-center" data-group="1">
+                            <div class="w-12 h-12 rounded-full bg-purple-500 bg-opacity-20 flex items-center justify-center mx-auto mb-2">👨‍💼</div>
+                            <p class="text-sm font-medium">박지훈</p>
+                            <p class="text-xs text-gray-400">VC 심사역</p>
+                            <p class="text-xs text-purple-400 mt-1">#투자 #AI</p>
+                        </div>
+                        <div class="profile-card glass rounded-xl p-4 text-center" data-group="2">
+                            <div class="w-12 h-12 rounded-full bg-blue-500 bg-opacity-20 flex items-center justify-center mx-auto mb-2">👩‍🔬</div>
+                            <p class="text-sm font-medium">이하은</p>
+                            <p class="text-xs text-gray-400">데이터 엔지니어</p>
+                            <p class="text-xs text-blue-400 mt-1">#MLOps #데이터</p>
+                        </div>
+                        <div class="profile-card glass rounded-xl p-4 text-center" data-group="2">
+                            <div class="w-12 h-12 rounded-full bg-green-500 bg-opacity-20 flex items-center justify-center mx-auto mb-2">👨‍🏫</div>
+                            <p class="text-sm font-medium">최민준</p>
+                            <p class="text-xs text-gray-400">CTO</p>
+                            <p class="text-xs text-green-400 mt-1">#채용 #데이터</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <span class="inline-block bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs px-3 py-1 rounded-full">
+                            ✅ AI 매칭 완료 — 호환도 94%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 기능 섹션 -->
+    <section id="features" class="py-24">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16 fade-up">
+                <h2 class="text-4xl font-bold mb-4">왜 AI 밋업 매칭인가요?</h2>
+                <p class="text-gray-400 text-lg">기존 방식의 한계를 AI가 해결합니다</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="glass rounded-2xl p-8 fade-up hover:glow-pink transition-all duration-300">
+                    <div class="text-4xl mb-4">🧠</div>
+                    <h3 class="text-xl font-bold mb-3">AI 프로필 분석</h3>
+                    <p class="text-gray-400 leading-relaxed">참가자의 직무, 관심사, 네트워킹 목적을 AI가 분석하여 최적의 대화 상대를 자동 추천합니다.</p>
+                </div>
+                <div class="glass rounded-2xl p-8 fade-up hover:glow-purple transition-all duration-300" style="transition-delay: 0.1s">
+                    <div class="text-4xl mb-4">⚡</div>
+                    <h3 class="text-xl font-bold mb-3">1분 자동 매칭</h3>
+                    <p class="text-gray-400 leading-relaxed">100명 참가자도 1분 내에 최적 매칭 완료. 수작업 대비 시간 99% 절감.</p>
+                </div>
+                <div class="glass rounded-2xl p-8 fade-up hover:glow-pink transition-all duration-300" style="transition-delay: 0.2s">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-xl font-bold mb-3">실시간 리포트</h3>
+                    <p class="text-gray-400 leading-relaxed">매칭 결과, 참가자 만족도, 네트워킹 효과를 실시간으로 분석하고 리포트를 생성합니다.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 데모 섹션 -->
+    <section id="demo" class="py-24 hero-gradient">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center mb-12 fade-up">
+                <h2 class="text-4xl font-bold mb-4">🎯 직접 체험해 보세요</h2>
+                <p class="text-gray-400">참가자 엑셀 파일을 업로드하면 AI가 최적 매칭 TOP 5를 보여드립니다</p>
+            </div>
+
+            <div class="glass rounded-2xl p-8 glow-purple fade-up">
+                <!-- 업로드 영역 -->
+                <div id="upload-area">
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-600 rounded-xl p-10 text-center hover:border-pink-500 transition cursor-pointer mb-6">
+                        <input type="file" id="file-input" accept=".xlsx,.xls,.csv" class="hidden">
+                        <div id="upload-label">
+                            <i class="fas fa-file-excel text-5xl text-gray-500 mb-4"></i>
+                            <p class="text-lg text-gray-300 font-medium mb-2">엑셀 파일을 드래그하거나 클릭하세요</p>
+                            <p class="text-sm text-gray-500">xlsx, xls, csv 지원</p>
+                        </div>
+                        <div id="file-info" class="hidden">
+                            <i class="fas fa-file-excel text-5xl text-green-400 mb-4"></i>
+                            <p class="text-lg text-green-400 font-medium" id="file-name-display"></p>
+                            <p class="text-sm text-gray-400" id="file-row-count"></p>
+                        </div>
+                    </div>
+
+                    <div class="glass rounded-xl p-5 mb-6">
+                        <p class="text-sm font-medium text-gray-300 mb-3">📋 엑셀 필수 컬럼 (헤더명 자동 인식)</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                            <div class="bg-gray-800 rounded-lg px-3 py-2"><span class="text-pink-400">이름</span> <span class="text-gray-500">이름, 성명, name</span></div>
+                            <div class="bg-gray-800 rounded-lg px-3 py-2"><span class="text-pink-400">소속</span> <span class="text-gray-500">소속, 회사, 기관</span></div>
+                            <div class="bg-gray-800 rounded-lg px-3 py-2"><span class="text-pink-400">직무</span> <span class="text-gray-500">직무, 역할, 직책</span></div>
+                            <div class="bg-gray-800 rounded-lg px-3 py-2"><span class="text-pink-400">관심사</span> <span class="text-gray-500">관심사, 키워드, 분야</span></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-3">* "목적" 또는 "네트워킹 목적" 컬럼이 있으면 매칭 정확도가 향상됩니다.</p>
+                        <a href="sample_participants.csv" download class="inline-block mt-3 text-xs text-pink-400 hover:text-pink-300 underline">
+                            <i class="fas fa-download"></i> 샘플 파일 다운로드 (10명)
+                        </a>
+                    </div>
+
+                    <button onclick="runMatching()" id="match-btn" disabled
+                            class="btn-cta w-full py-4 rounded-xl text-white font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                        🤖 AI 매칭 분석 시작
+                    </button>
+                </div>
+
+                <!-- 로딩 -->
+                <div id="loading-area" class="hidden text-center py-16">
+                    <div class="inline-block relative" style="width:80px;height:80px;">
+                        <div style="position:absolute;inset:0;border:4px solid transparent;border-top-color:#ec4899;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                        <div style="position:absolute;inset:8px;border:4px solid transparent;border-top-color:#8b5cf6;border-radius:50%;animation:spin 1.5s linear infinite reverse;"></div>
+                    </div>
+                    <p class="text-gray-300 mt-6 text-lg font-medium">AI가 참가자 프로필을 분석하고 있습니다...</p>
+                    <p class="text-gray-500 text-sm mt-2" id="loading-status">프로필 데이터 로딩 중</p>
+                </div>
+
+                <!-- 결과 영역 -->
+                <div id="result-area" class="hidden">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold">🏆 AI 매칭 결과 — TOP 5</h3>
+                            <p class="text-sm text-gray-400 mt-1">전체 <span id="total-pairs">0</span>개 매칭 중 최고 호환도 상위 5쌍</p>
+                        </div>
+                        <button onclick="resetDemo()" class="glass px-4 py-2 rounded-lg text-sm text-gray-300 hover:text-white transition">
+                            <i class="fas fa-redo"></i> 다시 하기
+                        </button>
+                    </div>
+
+                    <div id="top5-results" class="space-y-4"></div>
+
+                    <!-- 전체 통계 요약 -->
+                    <div class="grid grid-cols-3 gap-4 mt-8">
+                        <div class="glass rounded-xl p-4 text-center">
+                            <p class="text-3xl font-black text-pink-400" id="stat-participants">0</p>
+                            <p class="text-xs text-gray-400 mt-1">전체 참가자</p>
+                        </div>
+                        <div class="glass rounded-xl p-4 text-center">
+                            <p class="text-3xl font-black text-purple-400" id="stat-avg-score">0%</p>
+                            <p class="text-xs text-gray-400 mt-1">평균 호환도</p>
+                        </div>
+                        <div class="glass rounded-xl p-4 text-center">
+                            <p class="text-3xl font-black text-green-400" id="stat-top-score">0%</p>
+                            <p class="text-xs text-gray-400 mt-1">최고 호환도</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 text-center">
+                        <p class="text-gray-500 text-sm mb-4">전체 매칭 결과 및 상세 리포트는 정식 도입 시 제공됩니다.</p>
+                        <a href="#contact" class="btn-cta inline-block px-8 py-3 rounded-xl text-white font-bold">
+                            📩 정식 도입 문의하기
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 사용 방법 -->
+    <section class="py-24">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="text-center mb-16 fade-up">
+                <h2 class="text-4xl font-bold mb-4">3단계로 시작하세요</h2>
+            </div>
+            <div class="space-y-8">
+                <div class="flex gap-6 items-start fade-up">
+                    <div class="step-number">1</div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">참가자 명단 업로드</h3>
+                        <p class="text-gray-400">엑셀이나 구글시트로 참가자 정보를 업로드하세요. 이름, 소속, 관심사만 있으면 됩니다.</p>
+                    </div>
+                </div>
+                <div class="flex gap-6 items-start fade-up" style="transition-delay: 0.1s">
+                    <div class="step-number">2</div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">AI 자동 매칭</h3>
+                        <p class="text-gray-400">AI가 참가자 프로필을 분석하고 최적의 매칭 조합을 생성합니다. 1분이면 충분합니다.</p>
+                    </div>
+                </div>
+                <div class="flex gap-6 items-start fade-up" style="transition-delay: 0.2s">
+                    <div class="step-number">3</div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">결과 공유 & 리포트</h3>
+                        <p class="text-gray-400">매칭 결과를 참가자에게 공유하고, 행사 후 만족도 리포트를 자동으로 받아보세요.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- [가격 섹션 — 판매 기준 확정 후 주석 해제]
+    <section id="pricing" class="py-24 hero-gradient">
+        <div class="max-w-5xl mx-auto px-6">
+            <div class="text-center mb-16 fade-up">
+                <h2 class="text-4xl font-bold mb-4">합리적인 가격</h2>
+                <p class="text-gray-400">행사 규모에 맞는 플랜을 선택하세요</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="glass rounded-2xl p-8 text-center fade-up">
+                    <h3 class="text-lg font-bold text-gray-300">Starter</h3>
+                    <div class="my-6">
+                        <span class="text-4xl font-black">무료</span>
+                    </div>
+                    <ul class="text-sm text-gray-400 space-y-3 mb-8">
+                        <li>✅ 최대 30명 매칭</li>
+                        <li>✅ 기본 매칭 알고리즘</li>
+                        <li>✅ 결과 PDF 다운로드</li>
+                        <li>❌ 리포트 분석</li>
+                    </ul>
+                    <a href="#contact" class="block glass px-6 py-3 rounded-xl hover:bg-white hover:bg-opacity-10 transition">
+                        시작하기
+                    </a>
+                </div>
+                <div class="glass rounded-2xl p-8 text-center glow-pink fade-up border border-pink-500 border-opacity-30" style="transition-delay: 0.1s">
+                    <div class="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs px-3 py-1 rounded-full inline-block mb-2">인기</div>
+                    <h3 class="text-lg font-bold">Pro</h3>
+                    <div class="my-6">
+                        <span class="text-sm text-gray-400">월</span>
+                        <span class="text-4xl font-black"> 49만원</span>
+                    </div>
+                    <ul class="text-sm text-gray-400 space-y-3 mb-8">
+                        <li>✅ 최대 200명 매칭</li>
+                        <li>✅ AI 고급 매칭</li>
+                        <li>✅ 실시간 리포트</li>
+                        <li>✅ 참가자 앱 연동</li>
+                    </ul>
+                    <a href="#contact" class="btn-cta block px-6 py-3 rounded-xl text-white font-medium">
+                        도입 문의
+                    </a>
+                </div>
+                <div class="glass rounded-2xl p-8 text-center fade-up" style="transition-delay: 0.2s">
+                    <h3 class="text-lg font-bold text-gray-300">Enterprise</h3>
+                    <div class="my-6">
+                        <span class="text-4xl font-black">맞춤</span>
+                    </div>
+                    <ul class="text-sm text-gray-400 space-y-3 mb-8">
+                        <li>✅ 무제한 매칭</li>
+                        <li>✅ 커스텀 알고리즘</li>
+                        <li>✅ 전담 매니저</li>
+                        <li>✅ API 연동</li>
+                    </ul>
+                    <a href="#contact" class="block glass px-6 py-3 rounded-xl hover:bg-white hover:bg-opacity-10 transition">
+                        문의하기
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+    -->
+
+    <!-- 문의 -->
+    <section id="contact" class="py-24">
+        <div class="max-w-2xl mx-auto px-6 text-center fade-up">
+            <h2 class="text-4xl font-bold mb-4">도입 문의</h2>
+            <p class="text-gray-400 mb-8">15분 온라인 데모를 예약하세요</p>
+            <div class="glass rounded-2xl p-8">
+                <div class="space-y-4">
+                    <input type="text" placeholder="담당자 성함" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-pink-500">
+                    <input type="text" placeholder="기관/회사명" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-pink-500">
+                    <input type="email" placeholder="이메일" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-pink-500">
+                    <textarea placeholder="문의 내용 (선택)" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-pink-500"></textarea>
+                    <button onclick="alert('감사합니다! 빠른 시일 내에 연락드리겠습니다.')" class="btn-cta w-full py-4 rounded-xl text-white font-bold text-lg">
+                        📩 데모 예약하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer class="border-t border-gray-800 py-8">
+        <div class="max-w-7xl mx-auto px-6 text-center text-sm text-gray-500">
+            <p>© 2026 EpicStage. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // ─── 스크롤 애니메이션 ───
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+        // 히어로 매칭 애니메이션
+        setTimeout(() => {
+            document.querySelectorAll('.profile-card').forEach(card => card.classList.add('matched'));
+        }, 2000);
+
+        // ─── 파일 업로드 ───
+        let parsedData = [];
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const matchBtn = document.getElementById('match-btn');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-pink-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-pink-500'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('border-pink-500');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) handleFile(fileInput.files[0]);
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+
+                    if (json.length < 2) {
+                        alert('참가자가 2명 이상이어야 매칭이 가능합니다.');
+                        return;
+                    }
+
+                    parsedData = normalizeData(json);
+
+                    document.getElementById('upload-label').classList.add('hidden');
+                    document.getElementById('file-info').classList.remove('hidden');
+                    document.getElementById('file-name-display').textContent = file.name;
+                    document.getElementById('file-row-count').textContent = parsedData.length + '명의 참가자 데이터 로드 완료';
+                    matchBtn.disabled = false;
+                } catch (err) {
+                    alert('파일을 읽을 수 없습니다. 엑셀 또는 CSV 형식을 확인해 주세요.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ─── 헤더 자동 인식 ───
+        function normalizeData(rows) {
+            if (rows.length === 0) return [];
+            const keys = Object.keys(rows[0]);
+
+            const find = (keywords) => keys.find(k => {
+                const kl = k.toLowerCase().replace(/\s/g, '');
+                return keywords.some(w => kl.includes(w));
+            }) || null;
+
+            const nameCol = find(['이름', '성명', 'name', '참가자']);
+            const orgCol = find(['소속', '회사', '기관', '조직', 'company', 'org']);
+            const roleCol = find(['직무', '역할', '직책', '직위', 'role', 'position', 'title']);
+            const interestCol = find(['관심사', '관심분야', '키워드', '분야', 'interest', 'keyword', 'tag']);
+            const purposeCol = find(['목적', '네트워킹', 'purpose', 'goal']);
+
+            return rows.map((r, i) => ({
+                id: i,
+                name: (nameCol ? r[nameCol] : '') || '참가자' + (i + 1),
+                org: (orgCol ? r[orgCol] : '') || '',
+                role: (roleCol ? r[roleCol] : '') || '',
+                interests: ((interestCol ? r[interestCol] : '') || '').toString().split(/[,;/、]/).map(s => s.trim()).filter(Boolean),
+                purpose: (purposeCol ? r[purposeCol] : '') || '',
+            }));
+        }
+
+        // ─── AI 매칭 알고리즘 ───
+        function calculateScore(a, b) {
+            let score = 0;
+            let reasons = [];
+
+            // 기본 점수 (참가자끼리 만남 자체의 가치)
+            score += 45 + Math.floor(Math.random() * 8);
+
+            // 1. 관심사 겹침 (최대 25점)
+            const commonInterests = a.interests.filter(ai =>
+                b.interests.some(bi =>
+                    ai.toLowerCase().includes(bi.toLowerCase()) ||
+                    bi.toLowerCase().includes(ai.toLowerCase())
+                )
+            );
+            score += Math.min(25, commonInterests.length * 10);
+            if (commonInterests.length > 0) {
+                reasons.push({ type: 'good', text: '공통 관심사: ' + commonInterests.slice(0, 3).join(', ') });
+            }
+
+            // 2. 역할 상보성 (최대 15점)
+            const complementary = [
+                [['대표', 'ceo', '창업', '스타트업', 'founder'], ['투자', 'vc', '심사역', 'investor', '캐피탈', '액셀']],
+                [['개발', 'cto', '엔지니어', 'developer', 'engineer'], ['기획', 'pm', '디자인', 'planner', 'designer']],
+                [['마케팅', 'cmo', 'marketing'], ['영업', 'sales', 'bd', '사업개발']],
+                [['연구', 'researcher', '교수', '박사'], ['사업화', '상용화', '기술이전']],
+            ];
+            const aRole = (a.role + ' ' + a.org).toLowerCase();
+            const bRole = (b.role + ' ' + b.org).toLowerCase();
+            for (const [g1, g2] of complementary) {
+                const aIn1 = g1.some(k => aRole.includes(k));
+                const bIn2 = g2.some(k => bRole.includes(k));
+                const aIn2 = g2.some(k => aRole.includes(k));
+                const bIn1 = g1.some(k => bRole.includes(k));
+                if ((aIn1 && bIn2) || (aIn2 && bIn1)) {
+                    score += 15;
+                    reasons.push({ type: 'good', text: '상호 보완적 역할 매칭' });
+                    break;
+                }
+            }
+
+            // 3. 목적 일치 (최대 12점)
+            if (a.purpose && b.purpose) {
+                const aPurpose = a.purpose.toLowerCase();
+                const bPurpose = b.purpose.toLowerCase();
+                const purposeKws = ['투자', '협업', '채용', '네트워킹', '파트너', '기술교류', '멘토링'];
+                const common = purposeKws.filter(k => aPurpose.includes(k) && bPurpose.includes(k));
+                if (common.length > 0) {
+                    score += Math.min(12, common.length * 6);
+                    reasons.push({ type: 'good', text: '네트워킹 목적 일치: ' + common.join(', ') });
+                }
+            }
+
+            // 4. 다른 조직 보너스
+            if (a.org && b.org && a.org !== b.org) {
+                score += 3;
+            }
+
+            // 추천 대화 주제
+            if (commonInterests.length > 0) {
+                reasons.push({ type: 'tip', text: '추천 대화 주제: ' + commonInterests[0] + ' 관련 최신 트렌드' });
+            }
+
+            return { score: Math.min(99, score), reasons };
+        }
+
+        function generateAllMatches(people) {
+            const matches = [];
+            for (let i = 0; i < people.length; i++) {
+                for (let j = i + 1; j < people.length; j++) {
+                    const { score, reasons } = calculateScore(people[i], people[j]);
+                    matches.push({ a: people[i], b: people[j], score, reasons });
+                }
+            }
+            matches.sort((x, y) => y.score - x.score);
+            return matches;
+        }
+
+        // ─── 매칭 실행 ───
+        async function runMatching() {
+            if (parsedData.length < 2) return;
+
+            const uploadArea = document.getElementById('upload-area');
+            const loadingArea = document.getElementById('loading-area');
+            const resultArea = document.getElementById('result-area');
+
+            uploadArea.classList.add('hidden');
+            loadingArea.classList.remove('hidden');
+
+            const statuses = [
+                '프로필 데이터 로딩 중',
+                '관심사 키워드 추출 중',
+                '역할 상보성 분석 중',
+                '네트워킹 목적 매칭 중',
+                '최적 조합 계산 중',
+                '결과 정렬 및 TOP 5 선정 중',
+            ];
+            const statusEl = document.getElementById('loading-status');
+
+            for (let i = 0; i < statuses.length; i++) {
+                await new Promise(r => setTimeout(r, 500 + Math.random() * 400));
+                statusEl.textContent = statuses[i];
+            }
+
+            await new Promise(r => setTimeout(r, 600));
+
+            const allMatches = generateAllMatches(parsedData);
+            const top5 = allMatches.slice(0, 5);
+            const totalPairs = allMatches.length;
+            const avgScore = totalPairs > 0 ? Math.round(allMatches.reduce((s, m) => s + m.score, 0) / totalPairs) : 0;
+
+            // 통계
+            document.getElementById('total-pairs').textContent = totalPairs.toLocaleString();
+            document.getElementById('stat-participants').textContent = parsedData.length;
+            document.getElementById('stat-avg-score').textContent = avgScore + '%';
+            document.getElementById('stat-top-score').textContent = (top5[0] ? top5[0].score : 0) + '%';
+
+            // TOP 5 렌더링
+            const container = document.getElementById('top5-results');
+            container.innerHTML = '';
+
+            top5.forEach((match, idx) => {
+                const rank = idx + 1;
+                const gradientColor = rank === 1 ? 'from-pink-500 to-purple-500'
+                    : rank === 2 ? 'from-gray-400 to-gray-500'
+                    : rank === 3 ? 'from-yellow-600 to-yellow-700'
+                    : 'from-gray-600 to-gray-700';
+
+                const reasonsHtml = match.reasons.map(r =>
+                    r.type === 'good'
+                        ? '<p class="text-green-400 text-xs">✅ ' + r.text + '</p>'
+                        : '<p class="text-yellow-400 text-xs">💡 ' + r.text + '</p>'
+                ).join('');
+
+                container.innerHTML += `
+                    <div class="bg-gray-900 bg-opacity-60 rounded-xl p-5 border border-gray-700 ${rank === 1 ? 'border-pink-500 border-opacity-50 glow-pink' : ''}" style="animation: fadeSlideUp 0.5s ${idx * 0.15}s both;">
+                        <div class="flex items-start gap-4">
+                            <div class="rank-badge rank-${rank}">${rank}</div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3 flex-wrap">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-white font-bold">${match.a.name}</span>
+                                            <span class="text-gray-500 text-xs">${match.a.org}${match.a.role ? ' · ' + match.a.role : ''}</span>
+                                        </div>
+                                        <span class="text-pink-400">⇄</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-white font-bold">${match.b.name}</span>
+                                            <span class="text-gray-500 text-xs">${match.b.org}${match.b.role ? ' · ' + match.b.role : ''}</span>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl font-black bg-gradient-to-r ${gradientColor} bg-clip-text text-transparent">${match.score}%</span>
+                                </div>
+                                <div class="score-bar mb-3">
+                                    <div class="score-bar-fill bg-gradient-to-r ${gradientColor}" style="width: 0%;" data-width="${match.score}%"></div>
+                                </div>
+                                <div class="space-y-1">${reasonsHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            loadingArea.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+
+            // 바 애니메이션
+            setTimeout(() => {
+                document.querySelectorAll('.score-bar-fill').forEach(bar => {
+                    bar.style.width = bar.dataset.width;
+                });
+            }, 100);
+
+            resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function resetDemo() {
+            parsedData = [];
+            document.getElementById('upload-area').classList.remove('hidden');
+            document.getElementById('result-area').classList.add('hidden');
+            document.getElementById('upload-label').classList.remove('hidden');
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('match-btn').disabled = true;
+            fileInput.value = '';
+        }
+    </script>
+    <style>
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</body>
+</html>
